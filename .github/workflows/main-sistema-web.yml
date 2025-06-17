@@ -2,7 +2,7 @@ name: AutomacaoSalas-WEB Deploy
 
 on:
   push:
-    branches: [ master ] # ou master
+    branches: [ main ] # ou master
   workflow_dispatch: # deploy manual
 
 jobs:
@@ -10,7 +10,7 @@ jobs:
     runs-on: windows-latest # mudei para windows por causa do Web Deploy
     
     env:
-      work-directory: Codigo/ModuloDeSoftware/AutomacaoSalas
+      work-directory: Codigo/ModuloDeSoftware/AutomacaoSalas/SalasWeb
     
     steps:
     - name: Checkout code
@@ -19,7 +19,24 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: '8.0' # atualize conforme sua versão atual
+        dotnet-version: '6.0.x' # atualize conforme sua versão atual
+    
+    # Debug: Verificar estrutura de arquivos (REMOVER depois que funcionar)
+    - name: Debug - List files
+      run: |
+        echo "=== Verificando caminho correto ==="
+        echo "Work directory: ${{env.work-directory}}"
+        if (Test-Path "${{env.work-directory}}") {
+          echo "✅ Pasta existe!"
+          echo "Arquivos na pasta:"
+          Get-ChildItem "${{env.work-directory}}" | Select-Object Name, Length
+          echo "Procurando appsettings.json:"
+          Get-ChildItem "${{env.work-directory}}" -Filter "appsettings.json" | Select-Object FullName
+        } else {
+          echo "❌ Pasta não existe!"
+          echo "Procurando em todo o repositório:"
+          Get-ChildItem -Recurse -Include "appsettings.json" | Select-Object FullName
+        }
     
     # Substitui a connection string do MySQL para produção
     - name: Replace connection string
