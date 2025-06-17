@@ -61,8 +61,29 @@ jobs:
         cd ${{env.work-directory}}
         dotnet publish --configuration Release --no-build --output ./publishWEB
     
-    # Deploy via FTP (mais compatível com Site4Now)
-    - name: Deploy via FTP
+    # Deploy via FTP com App_Offline para aplicações em produção
+    - name: Create App_Offline file
+      run: |
+        cd ${{env.work-directory}}/publishWEB
+        echo "<html><body><h1>Site em manuten&ccedil;&atilde;o</h1><p>Voltaremos em instantes...</p></body></html>" > app_offline.htm
+    
+    - name: Deploy App_Offline first
+      uses: SamKirkland/FTP-Deploy-Action@v4.3.4
+      with:
+        server: win8184.site4now.net
+        username: itetech-001
+        password: ${{ secrets.FTP_PASSWORD }}
+        local-dir: '${{env.work-directory}}/publishWEB/'
+        server-dir: /salasweb/
+        include: app_offline.htm
+        exclude: |
+          **/*
+          !app_offline.htm
+    
+    - name: Wait for app to go offline
+      run: Start-Sleep -Seconds 10
+    
+    - name: Deploy application files
       uses: SamKirkland/FTP-Deploy-Action@v4.3.4
       with:
         server: win8184.site4now.net
@@ -75,3 +96,18 @@ jobs:
           **/.git*/**
           **/obj/**
           **/bin/**
+          app_offline.htm
+    
+    - name: Remove App_Offline file
+      uses: SamKirkland/FTP-Deploy-Action@v4.3.4
+      with:
+        server: win8184.site4now.net
+        username: itetech-001
+        password: ${{ secrets.FTP_PASSWORD }}
+        local-dir: '${{env.work-directory}}/publishWEB/'
+        server-dir: /salasweb/
+        include: app_offline.htm
+        dry-run: false
+        exclude: |
+          **/*
+          !app_offline.htm
