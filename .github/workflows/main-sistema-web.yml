@@ -1,113 +1,29 @@
-name: AutomacaoSalas-WEB Deploy
-
+name: Remove App_Offline - Emergency Fix
 on:
-  push:
-    branches: [ master ] # ou master
   workflow_dispatch: # deploy manual
 
 jobs:
-  build-and-deploy:
-    runs-on: windows-latest # mudei para windows por causa do Web Deploy
-    
-    env:
-      work-directory: Codigo/ModuloDeSoftware/AutomacaoSalas/SalasWeb
+  remove-app-offline:
+    runs-on: ubuntu-latest
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+    - name: Create empty directory
+      run: mkdir -p temp_deploy
     
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: '8.0' # atualize conforme sua versão atual
-    
-    # Debug: Verificar estrutura de arquivos (REMOVER depois que funcionar)
-    - name: Debug - List files
+    - name: Create dummy file to delete app_offline.htm
       run: |
-        echo "=== Verificando caminho correto ==="
-        echo "Work directory: ${{env.work-directory}}"
-        if (Test-Path "${{env.work-directory}}") {
-          echo "✅ Pasta existe!"
-          echo "Arquivos na pasta:"
-          Get-ChildItem "${{env.work-directory}}" | Select-Object Name, Length
-          echo "Procurando appsettings.json:"
-          Get-ChildItem "${{env.work-directory}}" -Filter "appsettings.json" | Select-Object FullName
-        } else {
-          echo "❌ Pasta não existe!"
-          echo "Procurando em todo o repositório:"
-          Get-ChildItem -Recurse -Include "appsettings.json" | Select-Object FullName
-        }
+        cd temp_deploy
+        echo "dummy" > dummy.txt
     
-    # Substitui a connection string do MySQL para produção
-    - name: Replace connection string
-      uses: microsoft/variable-substitution@v1
-      with:
-        files: '${{env.work-directory}}/appsettings.json'
-      env:
-        ConnectionStrings.MySqlConnection: ${{secrets.CONNECTION_STRING}}
-    
-    - name: Restore dependencies
-      run: |
-        cd ${{env.work-directory}}
-        dotnet restore
-    
-    - name: Build Application
-      run: |
-        cd ${{env.work-directory}}
-        dotnet build --configuration Release --no-restore
-    
-    - name: Publish Application
-      run: |
-        cd ${{env.work-directory}}
-        dotnet publish --configuration Release --no-build --output ./publishWEB
-    
-    # Deploy via FTP com App_Offline para aplicações em produção
-    - name: Create App_Offline file
-      run: |
-        cd ${{env.work-directory}}/publishWEB
-        echo "<html><body><h1>Site em manuten&ccedil;&atilde;o</h1><p>Voltaremos em instantes...</p></body></html>" > app_offline.htm
-    
-    - name: Deploy App_Offline first
+    - name: Remove App_Offline file via FTP
       uses: SamKirkland/FTP-Deploy-Action@v4.3.4
       with:
         server: win8184.site4now.net
         username: itetech-001
         password: ${{ secrets.FTP_PASSWORD }}
-        local-dir: '${{env.work-directory}}/publishWEB/'
+        local-dir: './temp_deploy/'
         server-dir: /salasweb/
-        include: app_offline.htm
-        exclude: |
-          **/*
-          !app_offline.htm
-    
-    - name: Wait for app to go offline
-      run: Start-Sleep -Seconds 10
-    
-    - name: Deploy application files
-      uses: SamKirkland/FTP-Deploy-Action@v4.3.4
-      with:
-        server: win8184.site4now.net
-        username: itetech-001
-        password: ${{ secrets.FTP_PASSWORD }}
-        local-dir: '${{env.work-directory}}/publishWEB/'
-        server-dir: /salasweb/
-        exclude: |
-          **/.git*
-          **/.git*/**
-          **/obj/**
-          **/bin/**
-          app_offline.htm
-    
-    - name: Remove App_Offline file
-      uses: SamKirkland/FTP-Deploy-Action@v4.3.4
-      with:
-        server: win8184.site4now.net
-        username: itetech-001
-        password: ${{ secrets.FTP_PASSWORD }}
-        local-dir: '${{env.work-directory}}/publishWEB/'
-        server-dir: /salasweb/
-        include: app_offline.htm
-        dry-run: false
-        exclude: |
-          **/*
-          !app_offline.htm
+        dangerous-clean-slate: true
+        include: |
+          dummy.txt
+        # Isso vai forçar a limpeza do app_offline.htm do servidor
