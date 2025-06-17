@@ -2,7 +2,7 @@ name: AutomacaoSalas-WEB Deploy
 
 on:
   push:
-    branches: [ main ] # ou master
+    branches: [ master ] # ou master
   workflow_dispatch: # deploy manual
 
 jobs:
@@ -19,7 +19,7 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: '6.0.x' # atualize conforme sua versão atual
+        dotnet-version: '8.0' # atualize conforme sua versão atual
     
     # Debug: Verificar estrutura de arquivos (REMOVER depois que funcionar)
     - name: Debug - List files
@@ -61,23 +61,17 @@ jobs:
         cd ${{env.work-directory}}
         dotnet publish --configuration Release --no-build --output ./publishWEB
     
-    # Opção 1: Web Deploy (recomendado)
-    - name: Deploy via Web Deploy
-      uses: azure/webapps-deploy@v2
+    # Deploy via FTP (mais compatível com Site4Now)
+    - name: Deploy via FTP
+      uses: SamKirkland/FTP-Deploy-Action@v4.3.4
       with:
-        app-name: 'itetech-001-site2'
-        publish-profile: ${{ secrets.PUBLISH_PROFILE }}
-        package: '${{env.work-directory}}/publishWEB'
-    
-    # Opção 2: FTP (backup - descomente se Web Deploy não funcionar)
-    # - name: Deploy via FTP
-    #   uses: SamKirkland/FTP-Deploy-Action@v4.3.4
-    #   with:
-    #     server: win8184.site4now.net
-    #     username: itetech-001
-    #     password: ${{ secrets.FTP_PASSWORD }}
-    #     local-dir: '${{env.work-directory}}/publishWEB/'
-    #     server-dir: /salasweb/
-    #     exclude: |
-    #       **/.git*
-    #       **/.git*/**
+        server: win8184.site4now.net
+        username: itetech-001
+        password: ${{ secrets.FTP_PASSWORD }}
+        local-dir: '${{env.work-directory}}/publishWEB/'
+        server-dir: /salasweb/
+        exclude: |
+          **/.git*
+          **/.git*/**
+          **/obj/**
+          **/bin/**
