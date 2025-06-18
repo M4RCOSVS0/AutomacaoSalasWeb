@@ -1,11 +1,9 @@
-name: AutomacaoSalas-WEB Deploy (Corrigido)
+name: EMERGENCY - Restore Site (Fix 404)
 on:
-  push:
-    branches: [ master ]
-  workflow_dispatch:
+  workflow_dispatch: # deploy manual de emergência
 
 jobs:
-  build-and-deploy:
+  emergency-restore:
     runs-on: windows-latest
     
     env:
@@ -42,32 +40,19 @@ jobs:
         cd ${{env.work-directory}}
         dotnet publish --configuration Release --no-build --output ./publishWEB
     
-    # ETAPA 1: Criar e enviar App_Offline
-    - name: Create App_Offline file
+    # Verificar se o web.config foi gerado corretamente
+    - name: Check if web.config exists
       run: |
         cd ${{env.work-directory}}/publishWEB
-        echo "<html><body><h1>Site em manuten&ccedil;&atilde;o</h1><p>Voltaremos em instantes...</p></body></html>" > app_offline.htm
+        if (Test-Path "web.config") {
+          Write-Host "✅ web.config encontrado"
+          Get-Content "web.config" | Select-Object -First 10
+        } else {
+          Write-Host "❌ web.config NÃO encontrado!"
+        }
     
-    - name: Deploy App_Offline first (STOP APPLICATION)
-      uses: SamKirkland/FTP-Deploy-Action@v4.3.4
-      with:
-        server: win8184.site4now.net
-        username: itetech-001
-        password: ${{ secrets.FTP_PASSWORD }}
-        local-dir: '${{env.work-directory}}/publishWEB/'
-        server-dir: /salasweb/
-        include: |
-          app_offline.htm
-        exclude: |
-          **/*
-          !app_offline.htm
-    
-    # ETAPA 2: Aguardar aplicação parar
-    - name: Wait for application to stop
-      run: Start-Sleep -Seconds 15
-    
-    # ETAPA 3: Deploy dos arquivos da aplicação
-    - name: Deploy application files
+    # Deploy completo forçando todos os arquivos
+    - name: Deploy complete application
       uses: SamKirkland/FTP-Deploy-Action@v4.3.4
       with:
         server: win8184.site4now.net
@@ -80,44 +65,16 @@ jobs:
           **/.git*/**
           **/obj/**
           **/bin/**
-          app_offline.htm
     
-    # ETAPA 4: Remover App_Offline (RESTART APPLICATION)
-    - name: Create empty folder for cleanup
+    # Teste de conectividade pós-deploy
+    - name: Test site after deploy
       run: |
-        mkdir -p ${{env.work-directory}}/cleanup
-        echo "cleanup complete" > ${{env.work-directory}}/cleanup/cleanup.txt
-    
-    - name: Remove App_Offline file (RESTART APPLICATION)
-      uses: SamKirkland/FTP-Deploy-Action@v4.3.4
-      with:
-        server: win8184.site4now.net
-        username: itetech-001
-        password: ${{ secrets.FTP_PASSWORD }}
-        local-dir: '${{env.work-directory}}/cleanup/'
-        server-dir: /salasweb/
-        include: |
-          cleanup.txt
-        # Deploy arquivo dummy para sincronizar
-    
-    # ETAPA 5: Limpeza manual do app_offline via PowerShell FTP
-    - name: Manual FTP cleanup of app_offline.htm
-      run: |
-        $ftpServer = "win8184.site4now.net"
-        $ftpUsername = "itetech-001"
-        $ftpPassword = "${{ secrets.FTP_PASSWORD }}"
-        
+        Write-Host "🔍 Testando conectividade com o site..."
         try {
-          # Criar request FTP para deletar app_offline.htm
-          $ftpRequest = [System.Net.FtpWebRequest]::Create("ftp://$ftpServer/salasweb/app_offline.htm")
-          $ftpRequest.Method = [System.Net.WebRequestMethods+Ftp]::DeleteFile
-          $ftpRequest.Credentials = New-Object System.Net.NetworkCredential($ftpUsername, $ftpPassword)
-          
-          # Executar delete
-          $response = $ftpRequest.GetResponse()
-          Write-Host "✅ app_offline.htm removido com sucesso!"
-          $response.Close()
+          $response = Invoke-WebRequest -Uri "http://itetech-001-site2.qtempurl.com" -TimeoutSec 30
+          Write-Host "✅ Site respondeu com status: $($response.StatusCode)"
         }
         catch {
-          Write-Host "⚠️ Arquivo app_offline.htm pode já ter sido removido: $($_.Exception.Message)"
+          Write-Host "⚠️ Site ainda não está respondendo: $($_.Exception.Message)"
+          Write-Host "Isso é normal - pode levar alguns minutos para o IIS reinicializar"
         }
