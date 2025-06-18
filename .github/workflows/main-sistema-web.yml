@@ -1,9 +1,11 @@
-name: EMERGENCY - Restore Site (Fix 404)
+name: AutomacaoSalas-WEB Deploy (Simplificado)
 on:
-  workflow_dispatch: # deploy manual de emergência
+  push:
+    branches: [ master ]
+  workflow_dispatch:
 
 jobs:
-  emergency-restore:
+  build-and-deploy:
     runs-on: windows-latest
     
     env:
@@ -40,19 +42,8 @@ jobs:
         cd ${{env.work-directory}}
         dotnet publish --configuration Release --no-build --output ./publishWEB
     
-    # Verificar se o web.config foi gerado corretamente
-    - name: Check if web.config exists
-      run: |
-        cd ${{env.work-directory}}/publishWEB
-        if (Test-Path "web.config") {
-          Write-Host "✅ web.config encontrado"
-          Get-Content "web.config" | Select-Object -First 10
-        } else {
-          Write-Host "❌ web.config NÃO encontrado!"
-        }
-    
-    # Deploy completo forçando todos os arquivos
-    - name: Deploy complete application
+    # Deploy direto SEM app_offline (mais estável)
+    - name: Deploy to production
       uses: SamKirkland/FTP-Deploy-Action@v4.3.4
       with:
         server: win8184.site4now.net
@@ -66,15 +57,18 @@ jobs:
           **/obj/**
           **/bin/**
     
-    # Teste de conectividade pós-deploy
-    - name: Test site after deploy
+    # Aguardar IIS processar as mudanças
+    - name: Wait for IIS to process changes
+      run: Start-Sleep -Seconds 10
+    
+    # Teste básico do site
+    - name: Basic site health check
       run: |
-        Write-Host "🔍 Testando conectividade com o site..."
+        Write-Host "🔍 Verificando se o site está respondendo..."
         try {
           $response = Invoke-WebRequest -Uri "http://itetech-001-site2.qtempurl.com" -TimeoutSec 30
-          Write-Host "✅ Site respondeu com status: $($response.StatusCode)"
+          Write-Host "✅ Site OK - Status: $($response.StatusCode)"
         }
         catch {
-          Write-Host "⚠️ Site ainda não está respondendo: $($_.Exception.Message)"
-          Write-Host "Isso é normal - pode levar alguns minutos para o IIS reinicializar"
+          Write-Host "⚠️ Site pode estar reiniciando: $($_.Exception.Message)"
         }
