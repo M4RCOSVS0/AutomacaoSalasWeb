@@ -1,4 +1,4 @@
-name: AutomacaoSalas-WEB Deploy (Simplificado)
+name: AutomacaoSalas-WEB Deploy (WebDeploy)
 on:
   push:
     branches: [ master ]
@@ -42,33 +42,10 @@ jobs:
         cd ${{env.work-directory}}
         dotnet publish --configuration Release --no-build --output ./publishWEB
     
-    # Deploy direto SEM app_offline (mais estável)
-    - name: Deploy to production
-      uses: SamKirkland/FTP-Deploy-Action@v4.3.4
-      with:
-        server: win8184.site4now.net
-        username: itetech-001
-        password: ${{ secrets.FTP_PASSWORD }}
-        local-dir: '${{env.work-directory}}/publishWEB/'
-        server-dir: /salasweb/
-        exclude: |
-          **/.git*
-          **/.git*/**
-          **/obj/**
-          **/bin/**
-    
-    # Aguardar IIS processar as mudanças
-    - name: Wait for IIS to process changes
-      run: Start-Sleep -Seconds 10
-    
-    # Teste básico do site
-    - name: Basic site health check
+    # Deploy via dotnet publish direto (mais estável que FTP)
+    - name: Deploy via WebDeploy
       run: |
-        Write-Host "🔍 Verificando se o site está respondendo..."
-        try {
-          $response = Invoke-WebRequest -Uri "http://itetech-001-site2.qtempurl.com" -TimeoutSec 30
-          Write-Host "✅ Site OK - Status: $($response.StatusCode)"
-        }
-        catch {
-          Write-Host "⚠️ Site pode estar reiniciando: $($_.Exception.Message)"
-        }
+        cd ${{env.work-directory}}
+        dotnet publish --configuration Release --output ./publishWEB --verbosity normal /p:WebPublishMethod=FTP /p:PublishUrl=ftp://win8184.site4now.net/salasweb /p:UserName=itetech-001 /p:Password="${{ secrets.FTP_PASSWORD }}" /p:DeployOnBuild=true
+      env:
+        DOTNET_CLI_TELEMETRY_OPTOUT: 1
